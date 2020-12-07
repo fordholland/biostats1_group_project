@@ -26,3 +26,25 @@ scale_fill_discrete = scale_fill_viridis_d
 
 knitr::knit_hooks$set(inline = as.character)
 ```
+
+Read and tidy data:
+
+```{r read dataset, message = F, warning = F}
+hate_crimes_df = 
+  read_csv("./HateCrimes.csv") %>% 
+  mutate(
+    unemployment = as.factor(unemployment), 
+    urbanization = as.factor(urbanization),
+    hate_crimes_per_100k_splc = as.numeric(hate_crimes_per_100k_splc)
+  ) %>% 
+  drop_na()
+```
+
+EDA:
+
+```{r distribution of hate crimes, message = F}
+hate_crimes_df %>% 
+  ggplot(aes(x = hate_crimes_per_100k_splc)) + 
+  geom_histogram()
+```
+
