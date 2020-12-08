@@ -1,0 +1,50 @@
+---
+title: "P8130: Biostats I - Final Project"
+author: "Daniel Ojeranti, David Nemirovsky, Ford Holland, Jared Klug, Justin Vargas"
+date: "12/18/2020"
+output: github_document
+---
+
+```{r setup, include = F}
+library(tidyverse)
+
+knitr::opts_chunk$set(
+  fig.width = 6,
+  fig.asp = .6,
+  out.width = "95%"
+)
+
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+
+knitr::knit_hooks$set(inline = as.character)
+```
+
+Read and tidy data:
+
+```{r read dataset, message = F, warning = F}
+hate_crimes_df = 
+  read_csv("./HateCrimes.csv") %>% 
+  mutate(
+    unemployment = as.factor(unemployment), 
+    urbanization = as.factor(urbanization),
+    hate_crimes_per_100k_splc = as.numeric(hate_crimes_per_100k_splc)
+  ) %>% 
+  drop_na()
+```
+
+EDA:
+
+```{r distribution of hate crimes, message = F}
+hate_crimes_df %>% 
+  ggplot(aes(x = hate_crimes_per_100k_splc)) + 
+  geom_histogram()
+```
+
