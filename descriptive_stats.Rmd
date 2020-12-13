@@ -1,0 +1,160 @@
+---
+title: "Descrptive statistics"
+author: "Ford Holland"
+date: "12/13/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(gtsummary)
+library(arsenal)
+```
+
+```{r}
+# read hate crimes data and format categorical variables for tables 
+df_hc <- 
+  read_csv("HateCrimes.csv") %>% 
+  janitor::clean_names() %>% 
+  mutate(
+    hate_crimes = as.numeric(hate_crimes_per_100k_splc),
+    unemp = unemployment %>% str_to_title() %>% factor(levels = c("Low", "High")),
+    urban = urbanization %>% str_to_title() %>% factor(levels = c("Low", "High"))
+  ) 
+
+# check derivations
+df_hc %>% count(unemp, unemployment)
+df_hc %>% count(urban, urbanization)
+
+# select parsed fields
+df_hc <- 
+  df_hc %>% 
+  select(-c(unemployment, urbanization, hate_crimes_per_100k_splc))
+
+# look at summary
+skimr::skim(df_hc)
+summary(df_hc$hate_crimes)
+```
+
+## Plot hate crime distribution
+
+```{r}
+# plot distribution of hate crimes data
+df_hc %>% 
+  ggplot(aes(x = hate_crimes)) +
+  geom_histogram(aes(y = ..density..), alpha = 0.5) +
+  geom_density(aes(), alpha = 0.5) +
+  labs(
+    title = "Distribution of hate crimes",
+    x = "Hate crimes per 100k population",
+    y = "Density"
+  )
+```
+
+## Descriptive statistics
+
+```{r}
+# using gt_summary
+df_hc %>% 
+  select(hate_crimes, everything()) %>% 
+  tbl_summary(
+    include = -c(state),
+    label = 
+      list(
+        hate_crimes ~ "Hate crimes (per 100k population)",
+        median_household_income ~ "Median household income",
+        perc_population_with_high_school_degree ~ "Population with high school degree (%)",
+        perc_non_citizen ~ "Percent non-citizen",
+        gini_index ~ "Gini index",
+        perc_non_white ~ "Percent non-white",
+        unemp ~ "Unemployment",
+        urban ~ "Urbanization"
+      )
+  ) %>% 
+  modify_footnote(starts_with("stat_") ~ NA)
+```
+
+```{r}
+# using kable
+# change variable names/labels
+labels <- 
+  list(
+    hate_crimes = "Hate crimes (per 100k population)",
+    median_household_income = "Median household income",
+    perc_population_with_high_school_degree = "Population with high school degree (%)",
+    perc_non_citizen = "Percent non-citizen",
+    gini_index = "Gini index",
+    perc_non_white = "Percent non-white",
+    unemp = "Unemployment",
+    urban = "Urbanization"
+  )
+
+# clean the output
+controls <- 
+  tableby.control(
+    total = TRUE,
+    test = FALSE,  # No test p-values yet
+    numeric.stats = c("meansd", "medianq1q3", "range", "Nmiss2"),
+    cat.stats = c("countpct", "Nmiss2"),
+    stats.labels = list(
+      meansd = "Mean (SD)",
+      medianq1q3 = "Median (Q1, Q3)",
+      range = "Min - Max",
+      Nmiss2 = "Missing",
+      countpct = "N (%)")
+  )
+
+# create table
+table <- 
+  tableby( 
+    ~ hate_crimes + 
+      median_household_income + 
+      perc_population_with_high_school_degree +
+      perc_non_citizen +
+      gini_index +
+      perc_non_white +
+      unemp +
+      urban, 
+    data = df_hc, 
+    control = controls
+  )
+
+summary(table, title = "Descriptive Statistics", labelTranslations = labels, text = TRUE) %>% 
+  knitr::kable()
+```
+
+## Check associations
+
+```{r}
+# education
+df_hc %>% 
+  ggplot(aes(x = perc_population_with_high_school_degree, y = hate_crimes)) +
+  geom_point() +
+  geom_smooth(method = lm)
+
+# income
+df_hc %>% 
+  ggplot(aes(x = median_household_income, y = hate_crimes)) +
+  geom_point() +
+  geom_smooth(method = lm)
+
+# percent non-citizen
+df_hc %>% 
+  ggplot(aes(x = perc_non_citizen, y = hate_crimes)) +
+  geom_point() +
+  geom_smooth(method = lm)
+
+# GINI index
+df_hc %>% 
+  ggplot(aes(x = gini_index, y = hate_crimes)) +
+  geom_point() +
+  geom_smooth(method = lm)
+
+# percent non-white
+df_hc %>% 
+  ggplot(aes(x = perc_non_white, y = hate_crimes)) +
+  geom_point() +
+  geom_smooth(method = lm)
+```
+
