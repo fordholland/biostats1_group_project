@@ -7,6 +7,7 @@ output: github_document
 
 ```{r setup, include = F}
 library(tidyverse)
+library(corrplot)
 
 knitr::opts_chunk$set(
   fig.width = 6,
@@ -46,5 +47,221 @@ EDA:
 hate_crimes_df %>% 
   ggplot(aes(x = hate_crimes_per_100k_splc)) + 
   geom_histogram()
+```
+
+Variable Selection:
+
+```{r variable selection}
+par(mar = c(4,5,1,1))
+corr_data = 
+  hate_crimes_df %>% 
+  select(- unemployment, - urbanization, - state)
+cor(corr_data[,c(1, 2, 3, 4, 5, 6)]) %>%  
+  corrplot(method = "circle", type = "upper", diag = FALSE)
+
+# Potential multicollinearity btwn perc_non_white and perc_non_citizen
+
+model_1 = lm(hate_crimes_per_100k_splc ~ unemployment + urbanization + median_household_income + perc_population_with_high_school_degree + perc_non_citizen + gini_index + perc_non_white, data = hate_crimes_df)
+
+summary(model_1)
+
+# Remove perc_non_white
+
+model_2 = lm(hate_crimes_per_100k_splc ~ unemployment + urbanization + median_household_income + perc_population_with_high_school_degree + perc_non_citizen + gini_index, data = hate_crimes_df)
+
+summary(model_2)
+
+# Remove unemployment
+
+model_3 = lm(hate_crimes_per_100k_splc ~ urbanization + median_household_income + perc_population_with_high_school_degree + perc_non_citizen + gini_index, data = hate_crimes_df)
+
+summary(model_3)
+
+# Remove median household income
+
+model_4 = lm(hate_crimes_per_100k_splc ~ urbanization + perc_population_with_high_school_degree + perc_non_citizen + gini_index, data = hate_crimes_df)
+
+summary(model_4)
+
+# Remove urbanization
+
+model_5 = lm(hate_crimes_per_100k_splc ~ perc_population_with_high_school_degree + perc_non_citizen + gini_index, data = hate_crimes_df)
+
+summary(model_5)
+
+# Remove perc_non_citizen
+
+model_6 = lm(hate_crimes_per_100k_splc ~ perc_population_with_high_school_degree + gini_index, data = hate_crimes_df)
+
+summary(model_6)
+
+# cleaner method for backwards selection
+
+model_all = lm(hate_crimes_per_100k_splc ~ . - state, data = hate_crimes_df)
+summary(model_all)
+
+step_1 = update(model_all, . ~ . - perc_non_white)
+summary(step_1)
+
+step_2 = update(step_1, . ~ . - unemployment)
+summary(step_2)
+
+step_3 = update(step_2, . ~ . - median_household_income)
+summary(step_3)
+
+step_4 = update(step_3, . ~ . - urbanization)
+summary(step_4)
+
+model_fin = update(step_4, . ~ . - perc_non_citizen)
+summary(model_fin)
+
+# try using stepwise
+
+model_untrans = step(model_all, direction = "backward")
+summary(model_untrans)
+plot(model_untrans)
+```
+
+Q-Q Plots:
+
+```{r qq plots}
+# Non-transformed
+
+par(mfrow = c(2,2))
+plot(model_fin)
+```
+
+Transformed:
+
+```{r transformed}
+library(MASS)
+boxcox(model_fin)
+
+# Natural log transformation:
+
+hate_crimes_trans = 
+  hate_crimes_df %>% 
+  mutate(ln_hate_crimes = log(hate_crimes_per_100k_splc))
+
+model_all_trans = lm(ln_hate_crimes ~ . - state - hate_crimes_per_100k_splc, data = hate_crimes_trans)
+summary(model_all_trans)
+
+# using stepwise
+
+model_trans = step(model_all_trans, direction = "backward")
+summary(model_trans)
+
+# QQ plots
+
+par(mfrow = c(2,2))
+trans_qq = plot(model_trans)
+untrans_qq = plot(model_fin)
+```
+
+Remove influential point:
+
+```{r remove DC}
+hate_crimes_no_out = 
+  hate_crimes_df %>% 
+  filter(state != "District of Columbia")
+
+model_untrans_no_out = lm(hate_crimes_per_100k_splc ~ . - state, data = hate_crimes_no_out)
+summary(model_untrans_no_out)
+
+model_untrans_adj = step(model_untrans_no_out, direction = "backward")
+summary(model_untrans_adj)
+
+plot(model_untrans_adj)
+```
+
+Remove Infl//out in Transformed
+
+```{r}
+hate_crimes_no_out = 
+  hate_crimes_trans %>% 
+  filter(state != "District of Columbia")
+
+model_all_trans = lm(ln_hate_crimes ~ . - state - hate_crimes_per_100k_splc, data = hate_crimes_trans)
+summary(model_all_trans)
+
+step_1_trans = update(model_all_trans, . ~ . - perc_non_white)
+summary(step_1_trans)
+
+step_2_trans = update(step_1_trans, . ~ . - unemployment)
+summary(step_2_trans)
+
+step_3_trans = update(step_2_trans, . ~ . - median_household_income)
+summary(step_3_trans)
+
+step_4_trans = update(step_3_trans, . ~ . - urbanization)
+summary(step_4_trans)
+
+model_trans_no_out = update(step_4_trans, . ~ . - perc_non_citizen)
+summary(model_trans_no_out)
+
+plot(model_trans_no_out)
+```
+
+Compare everything we have so far:
+
+```{r}
+plot(model_untrans)
+plot(model_untrans_adj)
+plot(model_trans)
+```
+
+New Box Cox:
+
+```{r}
+hate_crimes_no_dc = 
+  hate_crimes_df %>% 
+  filter(state != "District of Columbia")
+
+model_adj_all = lm(hate_crimes_per_100k_splc ~ . - state, data = hate_crimes_no_dc)
+summary(model_adj_all)
+
+model_adj = step(model_adj_all, direction = "backward")
+summary(model_adj)
+plot(model_adj)
+
+boxcox(model_adj)
+
+model_adj_no_dc = lm(hate_crimes_per_100k_splc ~ perc_population_with_high_school_degree  + unemployment * gini_index, data = hate_crimes_no_dc)
+summary(model_adj_no_dc)
+plot(model_adj_no_dc)
+```
+
+No Alaska:
+
+```{r}
+library("HH")
+hate_crimes_no_dc_ak = 
+  hate_crimes_no_dc %>% 
+  filter(state != "Alaska")
+
+par(mfrow = c(2,2))
+model_adj_no_dc_ak = lm(hate_crimes_per_100k_splc ~ perc_population_with_high_school_degree + gini_index * unemployment, data = hate_crimes_no_dc_ak)
+summary(model_adj_no_dc_ak)
+plot(model_adj_no_dc_ak)
+vif(model_adj_no_dc_ak)
+```
+
+Transformed no DC:
+
+```{r}
+hate_crimes_trans_no_dc = 
+  hate_crimes_trans %>% 
+  filter(state != "District of Columbia")
+
+model_adj_trans = lm(ln_hate_crimes ~ . - state - hate_crimes_per_100k_splc, data = hate_crimes_trans_no_dc)
+summary(model_adj_trans)
+
+model_trans = step(model_adj_trans, direction = "backward")
+summary(model_trans)
+plot(model_trans)
+
+model_adj_trans_no_dc = lm(ln_hate_crimes ~ perc_population_with_high_school_degree * unemployment + unemployment * gini_index , data = hate_crimes_trans_no_dc)
+summary(model_adj_trans_no_dc)
+plot(model_adj_trans_no_dc)
 ```
 
