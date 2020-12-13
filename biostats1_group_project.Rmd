@@ -229,19 +229,12 @@ boxcox(model_adj)
 model_adj_no_dc = lm(hate_crimes_per_100k_splc ~ perc_population_with_high_school_degree  + unemployment * gini_index, data = hate_crimes_no_dc)
 summary(model_adj_no_dc)
 plot(model_adj_no_dc)
-
-hate_crimes_no_out$state[2]
-
-model_4adj = lm(hate_crimes_per_100k_splc ~ perc_population_with_high_school_degree * unemployment + unemployment * gini_index, data = hate_crimes_no_out)
-summary(model_4adj)
-plot(model_4adj)
-
-anova(model_4adj, model_3adj)
 ```
 
 No Alaska:
 
 ```{r}
+library("HH")
 hate_crimes_no_dc_ak = 
   hate_crimes_no_dc %>% 
   filter(state != "Alaska")
