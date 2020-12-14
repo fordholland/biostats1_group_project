@@ -1,8 +1,7 @@
 ---
 title: "Descrptive statistics"
-author: "Ford Holland"
 date: "12/13/2020"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
@@ -55,16 +54,25 @@ df_hc %>%
 ## Descriptive statistics
 
 ```{r}
-# using gt_summary
+# using gtsummary
 df_hc %>% 
   select(hate_crimes, everything()) %>% 
+  mutate(
+    perc_population_with_high_school_degree = perc_population_with_high_school_degree*100,
+    perc_non_citizen = perc_non_citizen*100,
+    perc_non_white = perc_non_white*100
+  ) %>% 
   tbl_summary(
     include = -c(state),
+    type = all_continuous() ~ "continuous2",
+    statistic = all_continuous() ~ c("{mean} ({sd})",
+                                     "{median} ({p25}, {p75})", 
+                                     "{min}, {max}"),
     label = 
       list(
         hate_crimes ~ "Hate crimes (per 100k population)",
         median_household_income ~ "Median household income",
-        perc_population_with_high_school_degree ~ "Population with high school degree (%)",
+        perc_population_with_high_school_degree ~ "Percent population with high school degree",
         perc_non_citizen ~ "Percent non-citizen",
         gini_index ~ "Gini index",
         perc_non_white ~ "Percent non-white",
@@ -73,56 +81,9 @@ df_hc %>%
       )
   ) %>% 
   modify_footnote(starts_with("stat_") ~ NA)
+
 ```
 
-```{r}
-# using kable
-# change variable names/labels
-labels <- 
-  list(
-    hate_crimes = "Hate crimes (per 100k population)",
-    median_household_income = "Median household income",
-    perc_population_with_high_school_degree = "Population with high school degree (%)",
-    perc_non_citizen = "Percent non-citizen",
-    gini_index = "Gini index",
-    perc_non_white = "Percent non-white",
-    unemp = "Unemployment",
-    urban = "Urbanization"
-  )
-
-# clean the output
-controls <- 
-  tableby.control(
-    total = TRUE,
-    test = FALSE,  # No test p-values yet
-    numeric.stats = c("meansd", "medianq1q3", "range", "Nmiss2"),
-    cat.stats = c("countpct", "Nmiss2"),
-    stats.labels = list(
-      meansd = "Mean (SD)",
-      medianq1q3 = "Median (Q1, Q3)",
-      range = "Min - Max",
-      Nmiss2 = "Missing",
-      countpct = "N (%)")
-  )
-
-# create table
-table <- 
-  tableby( 
-    ~ hate_crimes + 
-      median_household_income + 
-      perc_population_with_high_school_degree +
-      perc_non_citizen +
-      gini_index +
-      perc_non_white +
-      unemp +
-      urban, 
-    data = df_hc, 
-    control = controls
-  )
-
-summary(table, title = "Descriptive Statistics", labelTranslations = labels, text = TRUE) %>% 
-  knitr::kable()
-```
 
 ## Check associations
 
