@@ -8,6 +8,9 @@ output: github_document
 ```{r setup, include = F}
 library(tidyverse)
 library(corrplot)
+library(leaps)
+library(HH)
+library(modelr)
 
 knitr::opts_chunk$set(
   fig.width = 6,
@@ -55,8 +58,8 @@ Variable Selection:
 par(mar = c(4,5,1,1))
 corr_data = 
   hate_crimes_df %>% 
-  select(- unemployment, - urbanization, - state)
-cor(corr_data[,c(1, 2, 3, 4, 5, 6)]) %>%  
+  dplyr::select(- unemployment, - urbanization, - state)
+cor(corr_data[,c(1:5)]) %>%  
   corrplot(method = "circle", type = "upper", diag = FALSE)
 
 # Potential multicollinearity btwn perc_non_white and perc_non_citizen
@@ -213,6 +216,8 @@ plot(model_trans)
 New Box Cox:
 
 ```{r}
+library(MASS)
+
 hate_crimes_no_dc = 
   hate_crimes_df %>% 
   filter(state != "District of Columbia")
@@ -234,34 +239,90 @@ plot(model_adj_no_dc)
 No Alaska:
 
 ```{r}
-library("HH")
 hate_crimes_no_dc_ak = 
   hate_crimes_no_dc %>% 
-  filter(state != "Alaska")
+  filter(state != "Oregon")
+
+# R-sq for no DC/AK is 0.3529
 
 par(mfrow = c(2,2))
-model_adj_no_dc_ak = lm(hate_crimes_per_100k_splc ~ perc_population_with_high_school_degree + gini_index * unemployment, data = hate_crimes_no_dc_ak)
+model_adj_no_dc_ak = lm(hate_crimes_per_100k_splc ~ perc_population_with_high_school_degree + gini_index + unemployment, data = hate_crimes_no_dc_ak)
 summary(model_adj_no_dc_ak)
 plot(model_adj_no_dc_ak)
 vif(model_adj_no_dc_ak)
+
+# Take out a bunch of more states -> R-sq is 0.3614
+
+hate_crimes_no_extra = 
+  hate_crimes_no_dc %>% 
+  filter(state != "Alaska") %>% 
+  filter(state != "New Jersey") %>% 
+  filter(state != "California") %>% 
+  filter(state != "Washington") %>% 
+  filter(state != "Minnesota") %>% 
+  filter(state != "Oregon") %>% 
+  filter(state != "New York")
+
+model_adj_no_extra = lm(hate_crimes_per_100k_splc ~ perc_population_with_high_school_degree + gini_index * unemployment, data = hate_crimes_no_extra)
+summary(model_adj_no_extra)
+plot(model_adj_no_extra)
+vif(model_adj_no_extra)
 ```
 
-Transformed no DC:
+Transformed no DC/AK:
 
 ```{r}
-hate_crimes_trans_no_dc = 
+# Use what Cody said:
+hate_crimes_trans_no_dc_or = 
   hate_crimes_trans %>% 
-  filter(state != "District of Columbia")
+  filter(state != "District of Columbia") %>% 
+  filter(state != "Oregon")
 
-model_adj_trans = lm(ln_hate_crimes ~ . - state - hate_crimes_per_100k_splc, data = hate_crimes_trans_no_dc)
-summary(model_adj_trans)
+# Plot for R2 and Cp vs parameters
 
-model_trans = step(model_adj_trans, direction = "backward")
-summary(model_trans)
-plot(model_trans)
+subsets = regsubsets(ln_hate_crimes ~ . - state - hate_crimes_per_100k_splc, data = hate_crimes_trans_no_dc_or)
+rs = summary(subsets)
+par(mar = c(4,4,1,1))
+par(mfrow = c(1,2))
+plot(2:8, rs$cp, xlab = "No of parameters", ylab = "Cp Statistic")
+abline(0,1)
+plot(2:8, rs$adjr2, xlab = "No of parameters", ylab = "Adj R2")
 
-model_adj_trans_no_dc = lm(ln_hate_crimes ~ perc_population_with_high_school_degree * unemployment + unemployment * gini_index , data = hate_crimes_trans_no_dc)
-summary(model_adj_trans_no_dc)
-plot(model_adj_trans_no_dc)
+hate_crimes_trans_no_dc_ak$state[42]
+
+par(mfrow = c(2,2))
+model_adj_trans_no_dc_or = lm(ln_hate_crimes ~ perc_population_with_high_school_degree + gini_index + unemployment, data = hate_crimes_trans_no_dc_or)
+summary(model_adj_trans_no_dc_or)
+plot(model_adj_trans_no_dc_or)
+vif(model_adj_trans_no_dc_or)
+
+stu_res = rstandard(model_adj_trans_no_dc_ak)
+stu_res[abs(stu_res) > 2]
+
+#stratified by Low Unemployment b/c interaction term significant
+hate_crimes_trans_no_dc_ak_low = 
+  hate_crimes_trans %>% 
+  filter(state != "District of Columbia") %>% 
+  filter(state != "Oregon") %>% 
+  filter(unemployment == "low")
+
+par(mfrow = c(2,2))
+model_adj_trans_no_dc_ak_low = lm(ln_hate_crimes ~ perc_population_with_high_school_degree + gini_index, data = hate_crimes_trans_no_dc_ak_low)
+summary(model_adj_trans_no_dc_ak_low)
+plot(model_adj_trans_no_dc_ak_low)
+vif(model_adj_trans_no_dc_ak_low)
+
+#Stratified by High Unemployment
+
+hate_crimes_trans_no_dc_ak_high = 
+  hate_crimes_trans %>% 
+  filter(state != "District of Columbia") %>% 
+  filter(state != "Oregon") %>% 
+  filter(unemployment == "high")
+
+par(mfrow = c(2,2))
+model_adj_trans_no_dc_ak_high = lm(ln_hate_crimes ~ perc_population_with_high_school_degree + gini_index, data = hate_crimes_trans_no_dc_ak_high)
+summary(model_adj_trans_no_dc_ak_high)
+plot(model_adj_trans_no_dc_ak_high)
+vif(model_adj_trans_no_dc_ak_high)
 ```
-
